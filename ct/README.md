@@ -1,7 +1,8 @@
 # Volatility 2 for Cyber Triage
 
 This fork builds the Volatility 2 executables, for Windows and Linux, that
-Cyber Triage runs through `cybertriage_volatility` to analyze memory images.
+Cyber Triage runs through `cybertriage_volatility` to analyze memory images,
+and the `plugins.zip` of community plugins it passes them.
 
 Work happens on `master`. Upstream is
 [volatilityfoundation/volatility](https://github.com/volatilityfoundation/volatility),
@@ -26,9 +27,9 @@ here is `a438e76` plus the one change below.
   same module.
 - **Pins packages** in `ct/requirements.txt` (bundled) and
   `ct/requirements-build.txt` and `ct/requirements-bootstrap.txt` (build tools).
-- **Adds `ct/smoke_test.py`**, run by the workflow, and the two directories it
-  uses: `ct/selftest/` and `ct/smoke_plugins/`, and `ct/install_wininst.py`
-  (see below).
+- **Adds `ct/smoke_test.py`**, run by the workflow, and the `ct/selftest/`
+  plugin it uses; `ct/make_plugins_zip.py`, which builds `plugins.zip` from
+  `ct/smoke_plugins/`; and `ct/install_wininst.py` (see below).
 
 ## Getting the executables
 
@@ -41,9 +42,11 @@ Each release has:
 | `volatility-<tag>-linux-x86_64.tar.gz` | `volatility`, a PyInstaller one-file build |
 | `SHA256SUMS` | SHA-256 of both archives |
 
-Both archives also carry upstream's `LICENSE.txt`, `LEGAL.txt`, `AUTHORS.txt`,
-`CREDITS.txt` and `README.txt`, the three requirements files, and a
-`SOURCE.txt` naming the exact source commit and build.
+Both archives also carry `plugins.zip` (see below), upstream's `LICENSE.txt`,
+`LEGAL.txt`, `AUTHORS.txt`, `CREDITS.txt` and `README.txt`, the three
+requirements files, and a `SOURCE.txt` naming the exact source commit and
+build. Each extracts to one folder, which is the whole of Cyber Triage's
+`ext/volatility`.
 
 The Windows exe keeps the name `volatility-a438e76.exe`, after the upstream
 commit, because the Cyber Triage installer and `WindowsToolLayout` run it by
@@ -116,8 +119,9 @@ workflow does the following:
 
 - `--info` lists the plugins Cyber Triage runs, including `yarascan`,
   `imageinfo` and `pslist`, and that no plugin fails to import.
-- `--plugins=plugins.zip` loads `autoruns` and `shimcachemem`. It zips
-  `ct/smoke_plugins/` the way Cyber Triage's `plugins.zip` is laid out.
+- The `plugins.zip` the archives carry has the layout of the one Cyber Triage
+  shipped before, and `--plugins=plugins.zip` loads `autoruns` and
+  `shimcachemem` from it, as Cyber Triage passes it.
 - The `ctselftest` plugin in `ct/selftest/` passes. Inside the exe, it checks
   the bundled distorm3, yara (with each of its modules) and Crypto against
   known answers, since Volatility only loads them when a plugin needs them.
@@ -150,11 +154,16 @@ signs `BitsParser.exe`.
 Change its pin in the requirements file that has it in its own commit, then
 release.
 
-## `ct/smoke_plugins`
+## `plugins.zip`
 
-Unmodified copies of the two community plugins in Cyber Triage's
-`plugins.zip`, for the smoke test only. Cyber Triage ships its own
-`plugins.zip`; the releases do not carry them.
+Cyber Triage passes `plugins.zip` to Volatility with `--plugins` when it runs
+`autoruns` and `shimcachemem`. `ct/make_plugins_zip.py` builds it from
+`ct/smoke_plugins/`, laid out like the `plugins.zip` Cyber Triage shipped
+before: a top-level `plugins/` folder holding `autoruns.py`, `shimcachemem.py`
+and an empty `__init__.py`. Its timestamps and attributes are fixed, so the same
+files always give the same zip.
+
+`ct/smoke_plugins/` holds unmodified copies of the two plugins:
 
 | File | Source | Licence |
 |---|---|---|
@@ -165,5 +174,7 @@ Unmodified copies of the two community plugins in Cyber Triage's
 
 GPL-2.0-or-later, the same as upstream; see `LICENSE.txt` and `LEGAL.txt`. The
 executables also bundle Python (PSF License), distorm3 (BSD), yara-python
-(Apache-2.0) and pycryptodome (BSD-2-Clause and public domain). The source for
-every release is this repository at the commit named in its `SOURCE.txt`.
+(Apache-2.0) and pycryptodome (BSD-2-Clause and public domain). `plugins.zip`
+holds `autoruns.py` (GPL-2.0) and `shimcachemem.py` (GPL-2.0-or-later). The
+source for every release is this repository at the commit named in its
+`SOURCE.txt`.
