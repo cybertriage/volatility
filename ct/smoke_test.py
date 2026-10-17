@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """Smoke test for the Cyber Triage build of Volatility 2.
 
-Usage: smoke_test.py <volatility.exe or volatility>
+Usage: smoke_test.py <volatility.exe or volatility> <plugins.zip>
 
 Run it with the Python 2.7 that has PyInstaller installed, on the platform the
-executable was built for.
+executable was built for, with the plugins.zip the release carries.
 
 Needs no memory image. Before pinning a new release in Cyber Triage, run it on
 a memory image against the release it replaces; see ct/README.md.
@@ -12,6 +12,7 @@ a memory image against the release it replaces; see ct/README.md.
 
 from __future__ import print_function
 
+import hashlib
 import os
 import re
 import shutil
@@ -34,6 +35,14 @@ PLUGINS = (
 
 # The community plugins Cyber Triage passes in plugins.zip, with --plugins.
 COMMUNITY_PLUGINS = ("autoruns", "shimcachemem")
+
+# The layout and files of the plugins.zip Cyber Triage shipped before this fork built it.
+PLUGINS_ZIP_LAYOUT = ["plugins/", "plugins/autoruns.py", "plugins/shimcachemem.py", "plugins/__init__.py"]
+PLUGINS_ZIP_SHA256 = {
+    "plugins/autoruns.py": "a94d3b798e830919aefd54d10b74568cda1dba97760d74e42021e690e54a53e8",
+    "plugins/shimcachemem.py": "8560472529be1d2af6076d280a9ce3855998608753bab3ace02de2a2f9e61b38",
+    "plugins/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+}
 
 # Bundled by PyInstaller, so the executable needs nothing installed on the machine.
 if sys.platform == "win32":
@@ -110,23 +119,26 @@ def dotted(version):
     return ".".join(str(part) for part in version) if version else "none"
 
 
-def plugins_zip(directory):
-    """Builds a zip laid out like Cyber Triage's plugins.zip from ct/smoke_plugins."""
-    path = os.path.join(directory, "plugins.zip")
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name in sorted(os.listdir(os.path.join(CT, "smoke_plugins"))):
-            if name.endswith(".py"):
-                archive.write(os.path.join(CT, "smoke_plugins", name), "plugins/" + name)
-    return path
-
-
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         print(__doc__)
         return 2
 
     exe = os.path.abspath(sys.argv[1])
+    plugins_zip = os.path.abspath(sys.argv[2])
     failures = []
+
+    zip_file = zipfile.ZipFile(plugins_zip)
+    try:
+        layout = zip_file.namelist()
+        changed = sorted(name for name, digest in PLUGINS_ZIP_SHA256.items()
+                         if name not in layout or hashlib.sha256(zip_file.read(name)).hexdigest() != digest)
+    finally:
+        zip_file.close()
+    print("plugins.zip: {0}, changed {1}".format(layout, changed))
+    if layout != PLUGINS_ZIP_LAYOUT or changed:
+        failures.append("plugins.zip holds {0} with {1} changed, expected {2} as shipped".format(
+            layout, changed, PLUGINS_ZIP_LAYOUT))
 
     exit_code, output = run([exe, "--info"])
     listed = listed_plugins(output)
@@ -140,7 +152,7 @@ def main():
     directory = tempfile.mkdtemp()
     try:
         # As Cyber Triage passes plugins.zip, in AutorunsCommand and ShimcachememCommand.
-        exit_code, output = run([exe, "--plugins=" + plugins_zip(directory), "--info"])
+        exit_code, output = run([exe, "--plugins=" + plugins_zip, "--info"])
         listed = listed_plugins(output)
         missing = [name for name in COMMUNITY_PLUGINS if name not in listed]
         failed = import_failures(output)

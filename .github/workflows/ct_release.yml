@@ -1,6 +1,7 @@
 # Builds the Volatility 2 executables that Cyber Triage ships: PyInstaller one-file builds of
 # vol.py, from upstream's pyinstaller.spec, for Windows x64 and Linux x86-64 on Python 2.7.18,
-# with the packages pinned in ct/requirements*.txt. Every run keeps them as workflow artifacts.
+# with the packages pinned in ct/requirements*.txt, packaged with the plugins.zip of community
+# plugins Cyber Triage passes them (ct/make_plugins_zip.py). Every run keeps them as workflow artifacts.
 # Pushing a ct-* tag also publishes them, with SHA256SUMS, as a GitHub release. See ct/README.md.
 name: ct_release
 on:
@@ -59,9 +60,11 @@ jobs:
       run: |
         C:\Python27\python.exe -m PyInstaller --clean --noconfirm --distpath build\dist --workpath build\work pyinstaller.spec
         If (${LASTEXITCODE} -ne 0) { Exit 1 }
+        C:\Python27\python.exe ct\make_plugins_zip.py build\dist\plugins.zip
+        If (${LASTEXITCODE} -ne 0) { Exit 1 }
     - name: Run smoke test
       run: |
-        C:\Python27\python.exe ct\smoke_test.py build\dist\volatility.exe
+        C:\Python27\python.exe ct\smoke_test.py build\dist\volatility.exe build\dist\plugins.zip
     - name: Package
       # Cyber Triage runs the exe as volatility-a438e76.exe, after the upstream commit it is built from.
       env:
@@ -69,7 +72,7 @@ jobs:
       run: |
         New-Item -ItemType Directory -Path "dist\${Env:PACKAGE}" | Out-Null
         Copy-Item -Path build\dist\volatility.exe -Destination "dist\${Env:PACKAGE}\volatility-a438e76.exe"
-        Copy-Item -Path LICENSE.txt, LEGAL.txt, AUTHORS.txt, CREDITS.txt, README.txt, ct\requirements.txt, ct\requirements-build.txt, ct\requirements-bootstrap.txt -Destination "dist\${Env:PACKAGE}"
+        Copy-Item -Path build\dist\plugins.zip, LICENSE.txt, LEGAL.txt, AUTHORS.txt, CREDITS.txt, README.txt, ct\requirements.txt, ct\requirements-build.txt, ct\requirements-bootstrap.txt -Destination "dist\${Env:PACKAGE}"
         @(
           "volatility-a438e76.exe, a PyInstaller one-file build of Volatility 2.6.1 for Cyber Triage."
           "Source:  ${Env:GITHUB_SERVER_URL}/${Env:GITHUB_REPOSITORY}/tree/${Env:GITHUB_SHA}"
@@ -77,6 +80,7 @@ jobs:
           "Python:  $(C:\Python27\python.exe -c 'import platform; print(platform.python_version())')"
           "Licence: GPL-2.0-or-later, see LICENSE.txt and LEGAL.txt."
           "Bundled packages: see requirements.txt; build tools: requirements-build.txt and requirements-bootstrap.txt."
+          "plugins.zip: community plugins autoruns.py (GPL-2.0) and shimcachemem.py (GPL-2.0-or-later); see ct/README.md in the source."
         ) | Set-Content -Path "dist\${Env:PACKAGE}\SOURCE.txt" -Encoding ascii
         Compress-Archive -Path "dist\${Env:PACKAGE}" -DestinationPath "dist\${Env:PACKAGE}.zip"
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -121,15 +125,16 @@ jobs:
     - name: Build
       run: |
         python -m PyInstaller --clean --noconfirm --distpath build/dist --workpath build/work pyinstaller.spec
+        python ct/make_plugins_zip.py build/dist/plugins.zip
     - name: Run smoke test
       run: |
-        python ct/smoke_test.py build/dist/volatility
+        python ct/smoke_test.py build/dist/volatility build/dist/plugins.zip
     - name: Package
       env:
         PACKAGE: ${{ steps.name.outputs.package }}
       run: |
         mkdir -p "dist/${PACKAGE}"
-        cp build/dist/volatility LICENSE.txt LEGAL.txt AUTHORS.txt CREDITS.txt README.txt ct/requirements.txt ct/requirements-build.txt ct/requirements-bootstrap.txt "dist/${PACKAGE}/"
+        cp build/dist/volatility build/dist/plugins.zip LICENSE.txt LEGAL.txt AUTHORS.txt CREDITS.txt README.txt ct/requirements.txt ct/requirements-build.txt ct/requirements-bootstrap.txt "dist/${PACKAGE}/"
         {
           echo "volatility, a PyInstaller one-file build of Volatility 2.6.1 for Cyber Triage."
           echo "Source:  ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${GITHUB_SHA}"
@@ -138,6 +143,7 @@ jobs:
           echo "Runs on: x86-64 Linux with glibc 2.28 or later."
           echo "Licence: GPL-2.0-or-later, see LICENSE.txt and LEGAL.txt."
           echo "Bundled packages: see requirements.txt; build tools: requirements-build.txt and requirements-bootstrap.txt."
+          echo "plugins.zip: community plugins autoruns.py (GPL-2.0) and shimcachemem.py (GPL-2.0-or-later); see ct/README.md in the source."
         } > "dist/${PACKAGE}/SOURCE.txt"
         tar -czf "dist/${PACKAGE}.tar.gz" -C dist "${PACKAGE}"
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
