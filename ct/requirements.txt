@@ -1,0 +1,4 @@
+# Packages the Volatility executables bundle (Python 2.7.18). See ct/README.md.
+distorm3==3.3.4
+pycryptodome==3.21.0
+yara-python==3.11.0
