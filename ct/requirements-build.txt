@@ -1,0 +1,10 @@
+# Tools to build the one-file executables with PyInstaller (Python 2.7.18), on top of the
+# runtime requirements. Install requirements-bootstrap.txt first. PyInstaller 3.6 is the
+# last release that supports Python 2.7.
+-r requirements.txt
+pyinstaller==3.6
+altgraph==0.17.3
+dis3==0.1.3
+future==0.18.3 ; sys_platform == "win32"
+pefile==2019.4.18 ; sys_platform == "win32"
+pywin32-ctypes==0.2.0 ; sys_platform == "win32"
